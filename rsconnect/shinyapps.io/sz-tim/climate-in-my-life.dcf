@@ -1,0 +1,12 @@
+name: climate-in-my-life
+title: climate-in-my-life
+username:
+account: sz-tim
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 3666256
+bundleId: 4246029
+url: https://sz-tim.shinyapps.io/climate-in-my-life/
+when: 1613757428.67043
+asMultiple: FALSE
+asStatic: FALSE
