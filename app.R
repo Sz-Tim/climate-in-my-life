@@ -159,6 +159,14 @@ server <- function(input, output) {
                                                which.max(AnomMo))/12))
     })
     
+    legend.df <- reactive({
+        tibble(label="Lifetime temperature\nrange & median year",
+               x_pos=input$plotStart + plot.dims()$x_span*0.03,
+               y_pos=plot.dims()$y_min + plot.dims()$y_span*0.95,
+               y_pos_min=plot.dims()$y_min + plot.dims()$y_span*0.92,
+               y_pos_max=plot.dims()$y_min + plot.dims()$y_span*0.98)
+    })
+    
     output$climateScatter <- renderPlot({
         ggplot() + 
             geom_hline(yintercept=ctr(), colour="gray", linetype=2) +
@@ -204,10 +212,19 @@ server <- function(input, output) {
             geom_text(data=names.df(), size=4, hjust=0.5,
                       nudge_y=plot.dims()$y_span*0.03,
                       aes(x=mnday, label=name, y=ypos)) +
-            
+            # legend
+            geom_point(data=legend.df(), shape=1, aes(x=x_pos, y=y_pos)) +
+            geom_errorbar(data=legend.df(), width=plot.dims()$x_span*0.01,
+                       aes(x=x_pos, ymin=y_pos_min, ymax=y_pos_max)) +
+            geom_text(data=legend.df(), lineheight=0.8,
+                      hjust=0, size=3.75, nudge_x=plot.dims()$x_span*0.02, 
+                      aes(x=x_pos, y=y_pos, label=label)) +
+            # scales 
             scale_colour_viridis_c(option="B") +
             scale_x_date("", date_labels="%Y", minor_breaks=NULL, 
-                         limits=c(input$plotStart, Sys.Date()+365*12)) +
+                         limits=c(plot.dims()$x_min, 
+                                  plot.dims()$x_max + plot.dims()$x_span*0.06)) +
+            ylim(plot.dims()$y_min, plot.dims()$y_max) +
             labs(y=ifelse(input$temp=="anomaly", 
                           "Difference from 1950-1980 average (ºC)",
                           paste("Average", 
