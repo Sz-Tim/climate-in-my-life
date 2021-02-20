@@ -72,7 +72,7 @@ server <- function(input, output) {
         ifelse(input$temp=="anomaly", 
                0, 
                ifelse(input$dataset=="globe", 14.183, 8.61))
-        })
+    })
     
     plot.dims <- reactive({
         tibble(x_min=input$plotStart, 
@@ -82,9 +82,9 @@ server <- function(input, output) {
                y_min=min(with(clm$mo[[input$dataset]] %>%
                                   filter(Date >= input$plotStart),
                               AnomMo-UncertMo))+ctr(), 
-               y_max=max(with(clm$mo[[input$dataset]] %>%
-                                  filter(Date >= input$plotStart),
-                              AnomMo+UncertMo))+ctr(),
+               y_max=max(c(with(clm$mo[[input$dataset]] %>%
+                                    filter(Date >= input$plotStart),
+                                AnomMo+UncertMo)), 2)+ctr(),
                y_span=y_max-y_min)
     })
     
@@ -254,7 +254,7 @@ server <- function(input, output) {
             # legend
             geom_point(data=legend.df(), shape=1, aes(x=x_pos, y=y_pos)) +
             geom_errorbar(data=legend.df(), width=plot.dims()$x_span*0.01,
-                       aes(x=x_pos, ymin=y_pos_min, ymax=y_pos_max)) +
+                          aes(x=x_pos, ymin=y_pos_min, ymax=y_pos_max)) +
             geom_text(data=legend.df(), lineheight=0.8,
                       hjust=0, size=3.75, nudge_x=plot.dims()$x_span*0.02, 
                       aes(x=x_pos, y=y_pos, label=label)) +
