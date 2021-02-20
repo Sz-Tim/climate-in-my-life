@@ -31,6 +31,11 @@ ui <- fluidPage(theme=shinythemes::shinytheme("flatly"),
                            label=NULL,
                            start="1994-03-01", end=Sys.Date(),
                            min="1850-01-01", max=Sys.Date()),
+            radioButtons(inputId="life.span",
+                         label="Summarise lifetimes by:",
+                         choices=c("Months", "Years"),
+                         selected="Years", 
+                         inline=TRUE),
             tags$hr(),
             radioButtons(inputId="dataset",
                          label="Use measurements for:",
@@ -43,6 +48,11 @@ ui <- fluidPage(theme=shinythemes::shinytheme("flatly"),
             dateInput(inputId="plotStart", 
                       label="Enter earliest date to plot", 
                       value="1850-01-01", min="1850-01-01", max="2020-01-01"),
+            checkboxGroupInput(inputId="timeRes", 
+                               label="Show temperature averages for:",
+                               choices=c("Months", "Years", "Decades"),
+                               selected=c("Months", "Years", "Decades"),
+                               inline=T),
             tags$br(),
             "Some text about how climate might have changed, comparing between different people, and stuff like that.",
         width=4),
@@ -133,6 +143,10 @@ server <- function(input, output) {
                                       filter(Date <= .y) %>%
                                       arrange(AnomMo) %$%
                                       as.character(first(Date))),
+                   medMoT=map2_dbl(bday, dday, ~clm$mo[[input$dataset]] %>%
+                                       filter(Date >= .x) %>%
+                                       filter(Date <= .y) %$%
+                                       median(AnomMo)),
                    minMoT=map2_dbl(bday, dday, ~clm$mo[[input$dataset]] %>%
                                        filter(Date >= .x) %>%
                                        filter(Date <= .y) %$%
@@ -171,39 +185,65 @@ server <- function(input, output) {
             geom_hline(yintercept=ctr(), colour="gray", linetype=2) +
             geom_hline(yintercept=ctr()+2, colour="gray", 
                        size=0.25, linetype=2) +
-            geom_segment(data=clm$dec[[input$dataset]] %>%
-                             filter(decadeStart >= input$plotStart &
-                                        decadeEnd <= Sys.Date()),
-                         aes(x=decadeStart, xend=decadeEnd,
-                             y=AnomMo+ctr(), yend=AnomMo+ctr()),
-                         colour="#fc4e2a", size=2, alpha=0.5) +
-            geom_linerange(data=clm$mo[[input$dataset]] %>%
+            {if("Decades" %in% input$timeRes) {
+                geom_segment(data=clm$dec[[input$dataset]] %>%
+                                 filter(decadeStart >= input$plotStart &
+                                            decadeEnd <= Sys.Date()),
+                             aes(x=decadeStart, xend=decadeEnd,
+                                 y=AnomMo+ctr(), yend=AnomMo+ctr()),
+                             colour="#fc4e2a", size=2, alpha=0.5)
+            }} + 
+            {if("Months" %in% input$timeRes) {
+                geom_linerange(data=clm$mo[[input$dataset]] %>%
+                                   filter(Date >= input$plotStart),
+                               aes(x=Date, 
+                                   ymin=AnomMo-UncertMo+ctr(), 
+                                   ymax=AnomMo+UncertMo+ctr()), 
+                               size=0.25, alpha=0.2)
+            }} +
+            {if("Months" %in% input$timeRes) {
+                geom_point(data=clm$mo[[input$dataset]] %>%
                                filter(Date >= input$plotStart),
-                           aes(x=Date, 
-                               ymin=AnomMo-UncertMo+ctr(), 
-                               ymax=AnomMo+UncertMo+ctr()), 
-                           size=0.25, alpha=0.2) + 
-            geom_point(data=clm$mo[[input$dataset]] %>%
-                           filter(Date >= input$plotStart),
-                       aes(x=Date, y=AnomMo+ctr()), 
-                       shape=1, size=0.5, alpha=0.2) +
-            geom_segment(data=clm$yr[[input$dataset]] %>%
-                             filter(YrStart >= input$plotStart),
-                         aes(x=YrStart, xend=YrEnd, 
-                             y=AnomMo+ctr(), yend=AnomMo+ctr()), 
-                         colour="#b10026", size=1, alpha=0.5) +
+                           aes(x=Date, y=AnomMo+ctr()), 
+                           shape=1, size=0.5, alpha=0.2) 
+            }} +
+            {if("Years" %in% input$timeRes) {
+                geom_segment(data=clm$yr[[input$dataset]] %>%
+                                 filter(YrStart >= input$plotStart),
+                             aes(x=YrStart, xend=YrEnd, 
+                                 y=AnomMo+ctr(), yend=AnomMo+ctr()), 
+                             colour="#b10026", size=1, alpha=0.7) 
+            }} +
             geom_rug(data=clm$mo[[input$dataset]] %>%
                          filter(Date >= input$plotStart),
                      aes(x=Date, colour=AnomMo+ctr()), sides="b") +
             # temp ranges
-            geom_errorbar(data=names.df(), colour="grey30", 
-                          width=plot.dims()$x_span*0.02,
-                         aes(x=xpos, ymin=minYrT+ctr(), ymax=maxYrT+ctr())) +
-            geom_text(data=names.df(), size=4, angle=90, vjust=0, 
-                      nudge_x=-plot.dims()$x_span*0.01,
-                       aes(x=xpos, y=(minYrT+maxYrT+ctr()*2)/2, label=name)) +
-            geom_point(data=names.df(), colour="grey30", shape=1,
-                       aes(x=xpos, y=medYrT+ctr())) +
+            {if(input$life.span=="Months") {
+                geom_errorbar(data=names.df(), colour="grey30", 
+                              width=plot.dims()$x_span*0.02,
+                              aes(x=xpos, ymin=minMoT+ctr(), ymax=maxMoT+ctr())) 
+            } else {
+                geom_errorbar(data=names.df(), colour="grey30", 
+                              width=plot.dims()$x_span*0.02,
+                              aes(x=xpos, ymin=minYrT+ctr(), ymax=maxYrT+ctr())) 
+            }} + 
+            {if(input$life.span=="Months") {
+                geom_text(data=names.df(), size=4, angle=90, vjust=0, 
+                          nudge_x=-plot.dims()$x_span*0.01,
+                          aes(x=xpos, y=(minMoT+maxMoT+ctr()*2)/2, label=name))
+            } else {
+                geom_text(data=names.df(), size=4, angle=90, vjust=0, 
+                          nudge_x=-plot.dims()$x_span*0.01,
+                          aes(x=xpos, y=(minYrT+maxYrT+ctr()*2)/2, label=name))
+            }} +
+            {if(input$life.span=="Months") {
+                geom_point(data=names.df(), colour="grey30", shape=1,
+                           aes(x=xpos, y=medMoT+ctr()))
+            } else {
+                geom_point(data=names.df(), colour="grey30", shape=1,
+                           aes(x=xpos, y=medYrT+ctr()))
+            }} +
+            
             # year ranges
             geom_errorbar(data=names.df(), colour="grey30", 
                           width=plot.dims()$y_span*0.04,
