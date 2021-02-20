@@ -54,7 +54,7 @@ ui <- fluidPage(theme=shinythemes::shinytheme("flatly"),
                                selected=c("Months", "Years", "Decades"),
                                inline=T),
             tags$br(),
-            "Some text about how climate might have changed, comparing between different people, and stuff like that.",
+            "",
         width=4),
 
         # Show the scatter plot with the dates and names
