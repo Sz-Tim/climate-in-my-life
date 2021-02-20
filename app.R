@@ -19,7 +19,7 @@ ui <- fluidPage(theme=shinythemes::shinytheme("flatly"),
         sidebarPanel(
             textInput(inputId="a.name",
                       label="Enter your name",
-                      value="Albert"),
+                      value="Albert E."),
             dateRangeInput(inputId="a.dates",
                            label="Enter the dates you've been alive",
                            start="1879-03-14", end="1955-04-18",
@@ -27,10 +27,10 @@ ui <- fluidPage(theme=shinythemes::shinytheme("flatly"),
             tags$hr(),
             textInput(inputId="b.name",
                       label="Enter your name",
-                      value="John"),
+                      value="Justin B."),
             dateRangeInput(inputId="b.dates",
                            label="Enter the dates you've been alive",
-                           start="1987-03-14", end="2020-02-11",
+                           start="1994-03-01", end=Sys.Date(),
                            min="1850-01-01", max=Sys.Date()),
             tags$hr(),
             radioButtons(inputId="dataset",
@@ -65,10 +65,28 @@ server <- function(input, output) {
                ifelse(input$dataset=="globe", 14.183, 8.61))
         })
     
+    plot.dims <- reactive({
+        tibble(x_min=input$plotStart, 
+               x_max=max(input$a.dates, input$b.dates, 
+                         clm$mo[[input$dataset]]$Year),
+               x_span=as.numeric(as.Date(x_max)-as.Date(x_min)),
+               y_min=min(with(clm$mo[[input$dataset]] %>%
+                                  filter(Date >= input$plotStart),
+                              AnomMo-UncertMo))+ctr(), 
+               y_max=max(with(clm$mo[[input$dataset]] %>%
+                                  filter(Date >= input$plotStart),
+                              AnomMo+UncertMo))+ctr(),
+               y_span=y_max-y_min)
+    })
+    
     names.df <- reactive({
         tibble(name=c(input$a.name, input$b.name), 
                bday=c(input$a.dates[1], input$b.dates[1]),
-               dday=c(input$a.dates[2], input$b.dates[2])) %>%
+               dday=c(input$a.dates[2], input$b.dates[2]),
+               mnday=c(mean.Date(as.Date(input$a.dates)),
+                       mean.Date(as.Date(input$b.dates))),
+               xpos=plot.dims()$x_max + plot.dims()$x_span*c(.02, .05),
+               ypos=plot.dims()$y_min + plot.dims()$y_span*c(0.02, 0.03)) %>%
             mutate(avgYrT=map2_dbl(bday, dday, ~clm$yr[[input$dataset]] %>%
                                        filter(YrEnd >= .x) %>%
                                        filter(YrEnd <= .y) %$%
@@ -144,7 +162,7 @@ server <- function(input, output) {
     output$climateScatter <- renderPlot({
         ggplot() + 
             geom_hline(yintercept=ctr(), colour="gray", linetype=2) +
-            geom_hline(yintercept=ctr()+c(1.5,2), colour="gray", 
+            geom_hline(yintercept=ctr()+2, colour="gray", 
                        size=0.25, linetype=2) +
             geom_segment(data=clm$dec[[input$dataset]] %>%
                              filter(decadeStart >= input$plotStart &
@@ -152,11 +170,6 @@ server <- function(input, output) {
                          aes(x=decadeStart, xend=decadeEnd,
                              y=AnomMo+ctr(), yend=AnomMo+ctr()),
                          colour="#fc4e2a", size=2, alpha=0.5) +
-            geom_segment(data=clm$yr[[input$dataset]] %>%
-                             filter(YrStart >= input$plotStart),
-                         aes(x=YrStart, xend=YrEnd, 
-                             y=AnomMo+ctr(), yend=AnomMo+ctr()), 
-                         colour="#b10026", size=1, alpha=0.5) +
             geom_linerange(data=clm$mo[[input$dataset]] %>%
                                filter(Date >= input$plotStart),
                            aes(x=Date, 
@@ -167,18 +180,31 @@ server <- function(input, output) {
                            filter(Date >= input$plotStart),
                        aes(x=Date, y=AnomMo+ctr()), 
                        shape=1, size=0.5, alpha=0.2) +
+            geom_segment(data=clm$yr[[input$dataset]] %>%
+                             filter(YrStart >= input$plotStart),
+                         aes(x=YrStart, xend=YrEnd, 
+                             y=AnomMo+ctr(), yend=AnomMo+ctr()), 
+                         colour="#b10026", size=1, alpha=0.5) +
             geom_rug(data=clm$mo[[input$dataset]] %>%
                          filter(Date >= input$plotStart),
                      aes(x=Date, colour=AnomMo+ctr()), sides="b") +
-            geom_linerange(data=names.df(), colour="grey",
-                         x=Sys.Date()+(365)*c(4,12),
-                         aes(ymin=minYrT, ymax=maxYrT, group=name)) +
-            geom_label(data=names.df(), size=4, hjust=0.5, alpha=0.3,
-                       x=Sys.Date()+(365)*c(4,12),
-                       aes(y=minYrT, label=name), fill="blue") +
-            geom_label(data=names.df(), size=4, hjust=0.5, alpha=0.3,
-                       x=Sys.Date()+(365)*c(4,12),
-                       aes(y=maxYrT, label=name), fill="red") +
+            # temp ranges
+            geom_errorbar(data=names.df(), colour="grey30", 
+                          width=plot.dims()$x_span*0.02,
+                         aes(x=xpos, ymin=minYrT+ctr(), ymax=maxYrT+ctr())) +
+            geom_text(data=names.df(), size=4, angle=90, vjust=0, 
+                      nudge_x=-plot.dims()$x_span*0.01,
+                       aes(x=xpos, y=(minYrT+maxYrT+ctr()*2)/2, label=name)) +
+            geom_point(data=names.df(), colour="grey30", shape=1,
+                       aes(x=xpos, y=medYrT+ctr())) +
+            # year ranges
+            geom_errorbar(data=names.df(), colour="grey30", 
+                          width=plot.dims()$y_span*0.04,
+                          aes(xmin=bday, xmax=dday, y=ypos)) +
+            geom_text(data=names.df(), size=4, hjust=0.5,
+                      nudge_y=plot.dims()$y_span*0.03,
+                      aes(x=mnday, label=name, y=ypos)) +
+            
             scale_colour_viridis_c(option="B") +
             scale_x_date("", date_labels="%Y", minor_breaks=NULL, 
                          limits=c(input$plotStart, Sys.Date()+365*12)) +
