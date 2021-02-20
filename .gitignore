@@ -6,6 +6,9 @@
 # temporary files
 temp/
 
+# rsconnect
+rsconnect/
+
 # Session Data files
 .RData
 *.Rproj
